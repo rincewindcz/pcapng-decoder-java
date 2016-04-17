@@ -60,7 +60,7 @@ public class PcapDecoder {
     /**
      * data to parse
      */
-    private byte[] data = null;
+    private final byte[] data;
 
     private Endian currentEndian = Endian.UNKNOWN;
             
@@ -158,7 +158,7 @@ public class PcapDecoder {
             initIndex += (blockLength - 1) + 1;
             return initIndex;
         } catch (Exception e) {
-            LOG.log(Level.WARNING, null, e);
+            LOG.log(Level.WARNING, e, null);
             return DecoderStatus.FAILED_STATUS;
         }
     }
@@ -209,7 +209,7 @@ public class PcapDecoder {
         try {
             return inputStream.read(data, off, len);
         } catch (IOException ex) {
-            LOG.log(Level.SEVERE, null, ex);
+            LOG.log(Level.SEVERE, ex, null);
             return -2;
         }
     }
@@ -286,7 +286,7 @@ public class PcapDecoder {
                 formerIndex = initIndex;
             }
         } catch (DecodeException e) {
-            LOG.log(Level.WARNING, null, e);
+            LOG.log(Level.WARNING, e, null);
             return DecoderStatus.FAILED_STATUS;
         }
         return DecoderStatus.SUCCESS_STATUS;
