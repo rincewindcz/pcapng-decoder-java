@@ -33,6 +33,7 @@ import fr.bmartel.pcapdecoder.utils.DecodeException;
 import fr.bmartel.pcapdecoder.utils.DecoderStatus;
 import fr.bmartel.pcapdecoder.utils.Endianess;
 import fr.bmartel.pcapdecoder.utils.UtilFunctions;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +55,7 @@ public class PcapDecoder {
     
     private final static Logger LOG = Logger.getLogger(PcapDecoder.class.getName());
     private final int DEFAULT_BUFFER_LENGTH = 8192;
+    private final int BLOCK_HEADER_LENGTH = 8;
     
     /**
      * data to parse
@@ -136,6 +138,10 @@ public class PcapDecoder {
         
         try {
             int blockLength = parseBlockLength(Arrays.copyOfRange(data, initIndex + 4, initIndex + 8), isBigEndian);
+            
+            if (isUsingStream()) { // if we are using stream, load rest of the block to buffer
+                lazyLoadBytesToBuffer(BLOCK_HEADER_LENGTH, blockLength);
+            }
 
             // substract 4 for header and 4 for size (x2 at the end)
             byte[] dataBlock = Arrays.copyOfRange(data, initIndex + 8, initIndex + (blockLength - 4));
@@ -176,9 +182,11 @@ public class PcapDecoder {
                 switch (endianess) {
                     case Endianess.BIG_ENDIAN:
                         currentEndian = Endian.BIG;
+                        LOG.info("BIG_ENDIAN detected in current data.");
                         break;
                     case Endianess.LITTLE_ENDIAN:
                         currentEndian = Endian.LITTLE;
+                        LOG.info("LITTLE_ENDIAN detected in current data.");
                         break;
                     default:
                         String message = "Unable to parse ENDIANESS from SECTION_HEADER_BLOCK!";
@@ -196,15 +204,50 @@ public class PcapDecoder {
         }
         return initIndex;
     }
+    
+    private int lazyLoadBytesToBuffer(int off, int len) {
+        try {
+            return inputStream.read(data, off, len);
+        } catch (IOException ex) {
+            LOG.log(Level.SEVERE, null, ex);
+            return -2;
+        }
+    }
 
-    public IPcapngType decodeNext() {
+    public IPcapngType decodeNext() throws DecodeException {
         if (!isUsingStream()) {
             LOG.warning("This instance is not using InputStream to parse data. Use decode() instead.");
             return null;
         }
-        IPcapngType value = null;
 
-        return value;
+        pcapSectionList.clear(); // clear previous entry
+        int initIndex = 0; // we always start from beggining of buffer
+        
+        int br = lazyLoadBytesToBuffer(0, BLOCK_HEADER_LENGTH);
+        
+        if (br == -2) { // I/O Exception
+            throw new DecodeException("Unable to read from InputStream.");
+        }
+        else if (br == -1) { // End of stream
+            return null;
+        }
+        
+        for (BlockTypes blockType: BlockTypes.values()) {
+            int iValue = processSectionType(BlockTypes.SECTION_HEADER_BLOCK, initIndex);
+            
+            if (iValue != initIndex) {
+                //initIndex = iValue;
+                LOG.log(Level.INFO, "Found BLOCK of type: {0}", blockType.toString());
+                break;
+            }
+        }
+        
+        if (pcapSectionList.isEmpty()) { // unknown block
+            LOG.warning("Error input data format error");
+            throw new DecodeException("File parsing error | format not recognized");
+        }
+
+        return pcapSectionList.get(0);
     }
     
     /**
