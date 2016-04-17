@@ -33,6 +33,7 @@ import fr.bmartel.pcapdecoder.utils.DecodeException;
 import fr.bmartel.pcapdecoder.utils.DecoderStatus;
 import fr.bmartel.pcapdecoder.utils.Endianess;
 import fr.bmartel.pcapdecoder.utils.UtilFunctions;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.logging.Level;
@@ -48,6 +49,7 @@ import java.util.logging.Logger;
 public class PcapDecoder {
 
     private final static Logger LOG = Logger.getLogger(PcapDecoder.class.getName());
+    private final int DEFAULT_BUFFER_LENGTH = 8192;
     
     /**
      * data to parse
@@ -57,6 +59,8 @@ public class PcapDecoder {
     private boolean isBigEndian = true;
 
     private final ArrayList<IPcapngType> pcapSectionList = new ArrayList<>();
+    
+    private final InputStream inputStream;
 
     /**
      * instantiate Pcap Decoder with a new data to parse (from Pcap Ng file)
@@ -65,6 +69,24 @@ public class PcapDecoder {
      */
     public PcapDecoder(byte[] data) {
         this.data = data;
+        inputStream = null;
+    }
+    
+    /**
+     * instantiate Pcap Decoder with an input stream
+     *
+     * @param stream
+     */
+    public PcapDecoder(InputStream stream) {
+        this.data = new byte[DEFAULT_BUFFER_LENGTH];
+        inputStream = stream;
+    }
+    
+    /**
+     * @return true if this instance is using stream to read data, false otherwise
+     */
+    public boolean isUsingStream() {
+        return inputStream != null;
     }
 
     /**
