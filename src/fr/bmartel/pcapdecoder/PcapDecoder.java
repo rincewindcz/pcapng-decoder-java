@@ -48,6 +48,10 @@ import java.util.logging.Logger;
  */
 public class PcapDecoder {
 
+    private enum Endian {
+        BIG, LITTLE, UNKNOWN
+    }
+    
     private final static Logger LOG = Logger.getLogger(PcapDecoder.class.getName());
     private final int DEFAULT_BUFFER_LENGTH = 8192;
     
@@ -56,8 +60,8 @@ public class PcapDecoder {
      */
     private byte[] data = null;
 
-    private boolean isBigEndian = true;
-
+    private Endian currentEndian = Endian.UNKNOWN;
+            
     private final ArrayList<IPcapngType> pcapSectionList = new ArrayList<>();
     
     private final InputStream inputStream;
@@ -97,6 +101,9 @@ public class PcapDecoder {
      * @return
      */
     private byte detectEndianness(byte[] magicNumber) {
+        
+        boolean isBigEndian = (currentEndian == Endian.BIG);
+        
         if (UtilFunctions.compare32Bytes(MagicNumber.MAGIC_NUMBER_BIG_ENDIAN, magicNumber, isBigEndian)) {
             return Endianess.BIG_ENDIAN;
         } else if (UtilFunctions.compare32Bytes(MagicNumber.MAGIC_NUMBER_LITTLE_ENDIAN, magicNumber, isBigEndian)) {
@@ -124,6 +131,9 @@ public class PcapDecoder {
      * @return
      */
     private int parseDataBlock(BlockTypes type, byte[] data, int initIndex) {
+        
+        boolean isBigEndian = (currentEndian == Endian.BIG);
+        
         try {
             int blockLength = parseBlockLength(Arrays.copyOfRange(data, initIndex + 4, initIndex + 8), isBigEndian);
 
@@ -156,14 +166,24 @@ public class PcapDecoder {
      * @throws fr.bmartel.pcapdecoder.utils.DecodeException
      */
     public int processSectionType(BlockTypes type, int initIndex) throws DecodeException {
+        
+        boolean isBigEndian = (currentEndian == Endian.BIG);
+
         if (UtilFunctions.compare32Bytes(HeaderBlocks.SECTION_TYPE_LIST.get(type.toString()), Arrays.copyOfRange(data, initIndex, initIndex + 4), isBigEndian)) {
             if (type == BlockTypes.SECTION_HEADER_BLOCK) {
                 byte endianess = detectEndianness(Arrays.copyOfRange(Arrays.copyOfRange(data, initIndex + 8, initIndex + 12), 0, 4));
 
-                if (endianess == Endianess.BIG_ENDIAN) {
-                    isBigEndian = true;
-                } else if (endianess == Endianess.LITTLE_ENDIAN) {
-                    isBigEndian = false;
+                switch (endianess) {
+                    case Endianess.BIG_ENDIAN:
+                        currentEndian = Endian.BIG;
+                        break;
+                    case Endianess.LITTLE_ENDIAN:
+                        currentEndian = Endian.LITTLE;
+                        break;
+                    default:
+                        String message = "Unable to parse ENDIANESS from SECTION_HEADER_BLOCK!";
+                        LOG.severe(message);
+                        throw new DecodeException(message);
                 }
             }
 
@@ -177,14 +197,29 @@ public class PcapDecoder {
         return initIndex;
     }
 
+    public IPcapngType decodeNext() {
+        if (!isUsingStream()) {
+            LOG.warning("This instance is not using InputStream to parse data. Use decode() instead.");
+            return null;
+        }
+        IPcapngType value = null;
+
+        return value;
+    }
+    
     /**
      * Decode
      *
      * @return 
      */
     public byte decode() {
+        if (isUsingStream()) {
+            LOG.warning("This instance is using InputStream to parse data. Use decodeNext() instead.");
+            return DecoderStatus.FAILED_STATUS;
+        }
+        
         if (data == null || data.length < 4) {
-            System.err.println("Error input data format error");
+            LOG.warning("Error input data format error");
             return DecoderStatus.FAILED_STATUS;
         }
 
