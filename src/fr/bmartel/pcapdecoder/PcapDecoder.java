@@ -34,6 +34,8 @@ import fr.bmartel.pcapdecoder.utils.Endianess;
 import fr.bmartel.pcapdecoder.utils.UtilFunctions;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * PCAP NG decoder
@@ -43,6 +45,8 @@ import java.util.Arrays;
  */
 public class PcapDecoder {
 
+    private final static Logger LOG = Logger.getLogger(PcapDecoder.class.getName());
+    
     /**
      * data to parse
      */
@@ -50,7 +54,7 @@ public class PcapDecoder {
 
     private boolean isBigEndian = true;
 
-    private ArrayList<IPcapngType> pcapSectionList = new ArrayList<IPcapngType>();
+    private final ArrayList<IPcapngType> pcapSectionList = new ArrayList<>();
 
     /**
      * instantiate Pcap Decoder with a new data to parse (from Pcap Ng file)
@@ -80,10 +84,10 @@ public class PcapDecoder {
 
     private int parseBlockLength(byte[] length, boolean isBigEndian) {
         if (isBigEndian) {
-            int blockLength = (((data[0] << 32) & 0xFF) + ((data[1] << 16) & 0xFF) + ((data[2] << 8) & 0xFF) + ((data[3] << 0) & 0xFF));
+            int blockLength = (((data[0] << 32) & 0xFF) + ((data[1] << 16) & 0xFF) + ((data[2] << 8) & 0xFF) + ((data[3]) & 0xFF));
             return blockLength;
         } else {
-            int blockLength = (((length[0] << 0) & 0xFF) + ((length[1] << 8) & 0xFF00) + ((length[2] << 16) & 0xFF0000) + ((length[3] << 32) & 0xFF000000));
+            int blockLength = (((length[0]) & 0xFF) + ((length[1] << 8) & 0xFF00) + ((length[2] << 16) & 0xFF0000) + ((length[3] << 32) & 0xFF000000));
             return blockLength;
         }
     }
@@ -114,7 +118,7 @@ public class PcapDecoder {
             initIndex += (blockLength - 1) + 1;
             return initIndex;
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.log(Level.WARNING, null, e);
             return DecoderStatus.FAILED_STATUS;
         }
     }
@@ -122,7 +126,10 @@ public class PcapDecoder {
     /**
      * Decode a specific section type from HeaderBLocks class
      *
-     * @param sectionType
+     * @param type
+     * @param initIndex
+     * @return 
+     * @throws fr.bmartel.pcapdecoder.utils.DecodeException
      */
     public int processSectionType(BlockTypes type, int initIndex) throws DecodeException {
         if (UtilFunctions.compare32Bytes(HeaderBlocks.SECTION_TYPE_LIST.get(type.toString()), Arrays.copyOfRange(data, initIndex, initIndex + 4), isBigEndian)) {
@@ -149,7 +156,7 @@ public class PcapDecoder {
     /**
      * Decode
      *
-     * @param data
+     * @return 
      */
     public byte decode() {
         if (data == null || data.length < 4) {
@@ -177,7 +184,7 @@ public class PcapDecoder {
                 formerIndex = initIndex;
             }
         } catch (DecodeException e) {
-            e.printStackTrace();
+            LOG.log(Level.WARNING, null, e);
             return DecoderStatus.FAILED_STATUS;
         }
         return DecoderStatus.SUCCESS_STATUS;
