@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2015 Bertrand Martel
+ * Copyright (c) 2016 Michal Genserek
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,6 +42,7 @@ import java.util.logging.Logger;
  * PCAP NG decoder
  *
  * @author Bertrand Martel
+ * @author Michal Genserek
  *
  */
 public class PcapDecoder {
