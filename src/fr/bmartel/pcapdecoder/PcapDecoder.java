@@ -35,6 +35,7 @@ import fr.bmartel.pcapdecoder.utils.Endianess;
 import fr.bmartel.pcapdecoder.utils.UtilFunctions;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.logging.Level;
@@ -49,10 +50,6 @@ import java.util.logging.Logger;
  */
 public class PcapDecoder {
 
-    private enum Endian {
-        BIG, LITTLE, UNKNOWN
-    }
-    
     private final static Logger LOG = Logger.getLogger(PcapDecoder.class.getName());
     private final int DEFAULT_BUFFER_LENGTH = 8192;
     private final int BLOCK_HEADER_LENGTH = 8;
@@ -62,7 +59,7 @@ public class PcapDecoder {
      */
     private final byte[] data;
 
-    private Endian currentEndian = Endian.UNKNOWN;
+    private ByteOrder currentEndian = ByteOrder.BIG_ENDIAN;
             
     private final ArrayList<IPcapngType> pcapSectionList = new ArrayList<>();
     
@@ -104,7 +101,7 @@ public class PcapDecoder {
      */
     private byte detectEndianness(byte[] magicNumber) {
         
-        boolean isBigEndian = (currentEndian == Endian.BIG);
+        boolean isBigEndian = (currentEndian == ByteOrder.BIG_ENDIAN);
         
         if (UtilFunctions.compare32Bytes(MagicNumber.MAGIC_NUMBER_BIG_ENDIAN, magicNumber, isBigEndian)) {
             return Endianess.BIG_ENDIAN;
@@ -134,13 +131,16 @@ public class PcapDecoder {
      */
     private int parseDataBlock(BlockTypes type, byte[] data, int initIndex) {
         
-        boolean isBigEndian = (currentEndian == Endian.BIG);
+        boolean isBigEndian = (currentEndian == ByteOrder.BIG_ENDIAN);
         
         try {
             int blockLength = parseBlockLength(Arrays.copyOfRange(data, initIndex + 4, initIndex + 8), isBigEndian);
             
+            LOG.info("This Block size: " + blockLength);
+            
             if (isUsingStream()) { // if we are using stream, load rest of the block to buffer
-                lazyLoadBytesToBuffer(BLOCK_HEADER_LENGTH, blockLength);
+                LOG.info("Lazy load " + blockLength);
+                lazyLoadBytesToBuffer(BLOCK_HEADER_LENGTH, blockLength - BLOCK_HEADER_LENGTH);
             }
 
             // substract 4 for header and 4 for size (x2 at the end)
@@ -173,19 +173,19 @@ public class PcapDecoder {
      */
     public int processSectionType(BlockTypes type, int initIndex) throws DecodeException {
         
-        boolean isBigEndian = (currentEndian == Endian.BIG);
-
+        boolean isBigEndian = (currentEndian == ByteOrder.BIG_ENDIAN);
+        
         if (UtilFunctions.compare32Bytes(HeaderBlocks.SECTION_TYPE_LIST.get(type.toString()), Arrays.copyOfRange(data, initIndex, initIndex + 4), isBigEndian)) {
             if (type == BlockTypes.SECTION_HEADER_BLOCK) {
                 byte endianess = detectEndianness(Arrays.copyOfRange(Arrays.copyOfRange(data, initIndex + 8, initIndex + 12), 0, 4));
 
                 switch (endianess) {
                     case Endianess.BIG_ENDIAN:
-                        currentEndian = Endian.BIG;
+                        currentEndian = ByteOrder.BIG_ENDIAN;
                         LOG.info("BIG_ENDIAN detected in current data.");
                         break;
                     case Endianess.LITTLE_ENDIAN:
-                        currentEndian = Endian.LITTLE;
+                        currentEndian = ByteOrder.LITTLE_ENDIAN;
                         LOG.info("LITTLE_ENDIAN detected in current data.");
                         break;
                     default:
@@ -286,7 +286,7 @@ public class PcapDecoder {
                 formerIndex = initIndex;
             }
         } catch (DecodeException e) {
-            LOG.log(Level.WARNING, e, null);
+            LOG.log(Level.WARNING, e.getCause(), null);
             return DecoderStatus.FAILED_STATUS;
         }
         return DecoderStatus.SUCCESS_STATUS;
